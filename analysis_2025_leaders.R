@@ -1,3 +1,4 @@
+rm(list = ls())
 # ============================================================
 # PORTFOLIO OPTIMIZATION & BACKTESTING ANALYSIS (2004-2025)
 # Retrospective Analysis: 2025 Market Leaders Backtested to 2004
@@ -20,7 +21,7 @@
 # Stocks: MSFT, NVDA, AAPL, AMZN, BRK-A (top 5 market cap, Nov 2025)
 # Optimization: CAPM + Global Minimum Variance (GMVP) + 
 # Mean-Variance efficient frontier
-# Backtesting: Rolling-window, no look-ahead bias
+# Backtesting: Expanding-window, no look-ahead
 # Transaction costs: 10 bps per rebalancing
 # Inflation: CPI-adjusted to Nov 2004 dollars (Nov 2004 - Nov 2024)
 #
@@ -33,12 +34,6 @@
 # predictive ability. Real 2004 investors faced genuine uncertainty 
 # about these companies' futures.
 #
-# ============================================================
-
-rm(list = ls())
-# ============================================================
-# PORTFOLIO OPTIMIZATION & BACKTESTING ANALYSIS (2004-2025)
-# Retrospective Analysis: 2025 Market Leaders Backtested to 2004
 # ============================================================
 
 packages <- c(
@@ -94,7 +89,7 @@ geometric_mean_returns <- function(x) {
   ((prod(1 + x_clean / 100)) ^ (1 / n) - 1)
 }
 
-# ✅ NOUVELLE FONCTION: geometric_mean_rf avec diagnostic
+# ✅ NEW FUNCTION: geometric_mean_rf with diagnostic output
 geometric_mean_rf <- function(rf_rates, verbose = TRUE) {
   rf_clean <- na.omit(rf_rates)
   n_original <- length(rf_rates)
@@ -238,8 +233,8 @@ rf_data_raw$date <- as.Date(rownames(rf_data_raw))
 colnames(rf_data_raw) <- c("rf_rate", "date")
 rownames(rf_data_raw) <- NULL
 
-# ✅ CORRECTION #1: Timing RF (fin de mois, pas début)
-# ✅ CORRECTION #2: Exclure NAs AVANT sélection
+# ORRECTION #1: RF Timing (end of month, not beginning)
+# CORRECTION #2: Exclude NAs BEFORE monthly aggregation
 rf_data <- rf_data_raw %>%
   dplyr::mutate(
     rf_rate = as.numeric(as.character(rf_rate)),
@@ -352,7 +347,7 @@ mean_spy_annual_full <- ((1 + mean_spy_monthly_full) ^ 12 - 1) * 100
 mean_spy_monthly_150 <- geometric_mean_returns(spy_returns_150)
 mean_spy_annual_150 <- ((1 + mean_spy_monthly_150) ^ 12 - 1) * 100
 
-# ✅ CORRECTION #5: Appel avec verbose
+# ✅ CORRECTION #5: Call with verbose flag
 cat("Calculating RF for full period:\n")
 mean_rf_full <- geometric_mean_rf(rf_data$rf_rate[1:n_returns_months], verbose = TRUE)
 
@@ -401,7 +396,7 @@ for (year in 1:n_years) {
     break
   }
   
-  # ✅ CORRECTION #4: Vérifier RF data disponible
+  # ORRECTION #4: Verify RF data is available
   if (end_period > nrow(rf_data)) {
     stop(sprintf("Year %d: RF data ends at row %d but need row %d\n",
                  year, nrow(rf_data), end_period))
@@ -424,17 +419,23 @@ for (year in 1:n_years) {
       var(spy_window, na.rm = TRUE)
   })
   
-  mean_spy_window <- geometric_mean_returns(spy_window)
-  mean_spy_annual_window <- ((1 + mean_spy_window) ^ 12 - 1) * 100
-  mean_rf_window <- geometric_mean_rf(rf_subset, verbose = (year == 1))
+mean_spy_window <- geometric_mean_returns(spy_window)
+mean_spy_annual_window <- ((1 + mean_spy_window) ^ 12 - 1) * 100
   
-  expected_returns_window <- mean_rf_window +
-    betas_window * (mean_spy_annual_window - mean_rf_window)
+# Rf COURANT = moyenne des 12 derniers mois
+rf_current <- mean(rf_data$rf_rate[(end_period - 11):end_period], na.rm = TRUE)
   
-  gmvp <- calculate_gmvp_weights(window_data)
-  mv <- calculate_mv_portfolio(window_data, expected_returns_window)
+# Prime historique (constant)
+mean_rf_historical <- geometric_mean_rf(rf_subset, verbose = FALSE)
+market_premium <- mean_spy_annual_window - mean_rf_historical
   
-  optimization_results[[year]] <- list(
+# CAPM avec Rf courant
+expected_returns_window <- rf_current + betas_window * market_premium
+  
+gmvp <- calculate_gmvp_weights(window_data)
+mv <- calculate_mv_portfolio(window_data, expected_returns_window)
+  
+optimization_results[[year]] <- list(
     Year = year,
     Periods = end_period,
     GMVP_weights = gmvp$weights,
@@ -826,3 +827,4 @@ cat("Period: Nov 2004 - Nov 2025 (21 years)\n")
 cat("Nominal results: Full period through Nov 2025\n")
 cat("Real results: Through Nov 2024 (CPI data limitation)\n")
 cat(paste(rep("=", 70), collapse = ""), "\n")
+

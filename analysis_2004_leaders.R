@@ -1,5 +1,7 @@
+rm(list = ls())
 # ============================================================
 # PORTFOLIO OPTIMIZATION & BACKTESTING ANALYSIS (2004-2025)
+# Retrospective Analysis: 2004 Market Leaders Backtested Forward
 # ============================================================
 #
 # RESEARCH QUESTION:
@@ -22,11 +24,6 @@
 # CAPM betas | Annual performance metrics | Wealth evolution 
 # (nominal & real) | Sharpe ratios
 #
-# ============================================================
-rm(list = ls())
-# ============================================================
-# PORTFOLIO OPTIMIZATION & BACKTESTING ANALYSIS (2004-2025)
-# Retrospective Analysis: 2004 Market Leaders Backtested Forward
 # ============================================================
 
 packages <- c(
@@ -82,7 +79,7 @@ geometric_mean_returns <- function(x) {
   ((prod(1 + x_clean / 100)) ^ (1 / n) - 1)
 }
 
-# ✅ NOUVELLE FONCTION: geometric_mean_rf avec diagnostic
+# ✅ NEW FUNCTION: geometric_mean_rf with diagnostic output
 geometric_mean_rf <- function(rf_rates, verbose = TRUE) {
   rf_clean <- na.omit(rf_rates)
   n_original <- length(rf_rates)
@@ -226,8 +223,8 @@ rf_data_raw$date <- as.Date(rownames(rf_data_raw))
 colnames(rf_data_raw) <- c("rf_rate", "date")
 rownames(rf_data_raw) <- NULL
 
-# ✅ CORRECTION #1: Timing RF (fin de mois, pas début)
-# ✅ CORRECTION #2: Exclure NAs AVANT sélection
+# ORRECTION #1: RF Timing (end of month, not beginning)
+# ORRECTION #2: Exclude NAs BEFORE monthly aggregation
 rf_data <- rf_data_raw %>%
   dplyr::mutate(
     rf_rate = as.numeric(as.character(rf_rate)),
@@ -284,7 +281,7 @@ cat("  Returns start: ", as.character(data_wide$date[1]),
 cat("  RF start: ", as.character(min(rf_data$date)), 
     " | RF end: ", as.character(max(rf_data$date)), "\n\n")
 
-# ✅ CORRECTION #3: DATA QUALITY CHECK RF vs RETURNS
+# ORRECTION #3: DATA QUALITY CHECK RF vs RETURNS
 cat("--- DATA QUALITY CHECK: RF ALIGNMENT ---\n")
 
 n_returns_months <- nrow(returns_matrix_full)
@@ -340,7 +337,7 @@ mean_spy_annual_full <- ((1 + mean_spy_monthly_full) ^ 12 - 1) * 100
 mean_spy_monthly_150 <- geometric_mean_returns(spy_returns_150)
 mean_spy_annual_150 <- ((1 + mean_spy_monthly_150) ^ 12 - 1) * 100
 
-# ✅ CORRECTION #5: Appel avec verbose
+# ✅ CORRECTION #5: Call with verbose flag
 cat("Calculating RF for full period:\n")
 mean_rf_full <- geometric_mean_rf(rf_data$rf_rate[1:n_returns_months], verbose = TRUE)
 
@@ -389,7 +386,7 @@ for (year in 1:n_years) {
     break
   }
   
-  # ✅ CORRECTION #4: Vérifier RF data disponible
+  # ✅ CORRECTION #4: Verify RF data is available
   if (end_period > nrow(rf_data)) {
     stop(sprintf("Year %d: RF data ends at row %d but need row %d\n",
                  year, nrow(rf_data), end_period))
@@ -414,10 +411,16 @@ for (year in 1:n_years) {
   
   mean_spy_window <- geometric_mean_returns(spy_window)
   mean_spy_annual_window <- ((1 + mean_spy_window) ^ 12 - 1) * 100
-  mean_rf_window <- geometric_mean_rf(rf_subset, verbose = (year == 1))
   
-  expected_returns_window <- mean_rf_window +
-    betas_window * (mean_spy_annual_window - mean_rf_window)
+  # Rf COURANT = moyenne des 12 derniers mois
+  rf_current <- mean(rf_data$rf_rate[(end_period - 11):end_period], na.rm = TRUE)
+  
+  # Prime historique (constant)
+  mean_rf_historical <- geometric_mean_rf(rf_subset, verbose = FALSE)
+  market_premium <- mean_spy_annual_window - mean_rf_historical
+  
+  # CAPM avec Rf courant
+  expected_returns_window <- rf_current + betas_window * market_premium
   
   gmvp <- calculate_gmvp_weights(window_data)
   mv <- calculate_mv_portfolio(window_data, expected_returns_window)
